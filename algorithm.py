@@ -1,19 +1,30 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-
 import json
 
 with open('stations.json', encoding='utf-8-sig')as json_file:  #Open Saved Json file to Dictionary
     stations = json.load(json_file)
+with open('stations_info.json', encoding='utf-8-sig')as json_file:  #Open Saved Json file to Dictionary
+    stations_info = json.load(json_file)
+with open('transfer_data.json', encoding='utf-8-sig')as json_file:  #Open Saved Json file to Dictionary
+    transfer_data = json.load(json_file)
 
 from collections import deque
 
-def backtracking(station, n, time, visited = {}):
-    #print(station, time)
+def getLine(st1, st2):
+    line1 = stations_info[st1]
+    line2 = stations_info[st2]
+    
+    link = []
+    for num1 in line1:
+        for num2 in line2:
+            if num1 == num2:
+                link.append(num1)
+    return link
+
+def backtracking(line, station, n, time, visited = {}): #start station은 line input을 ""로(empty string)
     if time > n: return #소요시간이 n분을 넘어갈 경우 해당 역은 탐색하지 않는다
     
     around_stations = stations[station]
+    
     if station in visited:
         if visited[station] > time:
             visited[station] = time
@@ -23,7 +34,19 @@ def backtracking(station, n, time, visited = {}):
         visited[station] = time
     
     for st_name, takes_time in around_stations.items():#주변 역들 탐색
-        backtracking(st_name, n, time + takes_time + 0.5, visited) #0.5초 정차시간 추가?
+        next_time = time + takes_time #다음 역까지 걸린 시간
+        link = getLine(station, st_name)
+        for riding in link:
+            if line == "": #출발역 예외처리
+                backtracking(riding, st_name, n, next_time, visited)
+            if riding == line:
+                backtracking(riding, st_name, n, next_time + 0.5, visited) #정차시간 추가
+            else:
+                try:
+                    transfer_time = transfer_data[station][line][riding]
+                except KeyError:
+                    continue
+                backtracking(riding, st_name, n, next_time + 3.0 + transfer_time, visited) #정차시간 + 환승시간 + 대기시간
     st_list = list(visited.keys())
     return st_list
 
@@ -52,24 +75,48 @@ def bfs(station, n, time, visited = []):
 def getInput():
     n = int(input('사람이 몇 명입니까? '))
     station_list = []
-    #n = 4
-    #station_list = ['충무로', '선정릉', '잠실', '건대입구']
-    #n = 1
-    #station_list = ['잠실']
-    
+
     for i in range(n):
         temp = input('탑승 역을 입력하시오: ')
         station_list.append(temp)
         
     return station_list, n
 
-def binarySearch(accessible_list, station):
+def bruteforce(accessible_list, n, cnt):
+    duplicate_list = []
+    for station in accessible_list[0]:
+        duplicated = True
+        for i in range(1, n): #accessible_list[i] 에 대하여 전수조사
+            flag = False
+            for st in accessible_list[i]:
+                cnt = cnt + 1
+                if st == station:
+                    flag = True
+                    break
+            if flag == False:
+                duplicated = False
+                break
+        if duplicated == False:
+            continue
+        duplicate_list.append(station)
+    return duplicate_list, cnt            
+
+def insertion_sort(arr, cnt):
+    for end in range(1, len(arr)):
+        for i in range(end, 0, -1):
+            if arr[i - 1] > arr[i]:
+                cnt = cnt + 1
+                arr[i - 1], arr[i] = arr[i], arr[i - 1]
+    return cnt
+
+def binarySearch(accessible_list, station, cnt):
     size = len(accessible_list)
     left = 0
     right = size - 1
     
     while left <= right:
         mid = int((left + right) / 2)
+        cnt = cnt + 1
         if accessible_list[mid] == station:
             return True
         elif accessible_list[mid] > station:
@@ -78,42 +125,77 @@ def binarySearch(accessible_list, station):
             left = mid + 1
     return False
 
-def getList(accessible_list, n): #갈수있는 역들 모음(2차원행렬), 사람 수
+def binary(accessible_list, n, cnt):
+    #1. accessible_list를 삽입정렬의 방식으로 sort한다
+    for acc in accessible_list:
+        cnt = cnt + insertion_sort(acc, 0)
+        
+    #2. accessible_list[0]에 나오는 역들을 기준으로 이진 탐색을 진행한다
     duplicate_list = []
     for station in accessible_list[0]:
         duplicated = True
         for i in range(1, n):
-            duplicated = duplicated and binarySearch(accessible_list[i], station)
+            duplicated = duplicated and binarySearch(accessible_list[i], station, cnt)
         if duplicated:
             duplicate_list.append(station)
-    return duplicate_list
+    return duplicate_list, cnt
+
+def hashing(accesible_list, n, cnt):
+    #1. dictionary형태로 hashing 테이블을 구성한다
+    table = []
+    
+    for i in range(len(accesible_list)):
+        dic = {station : 1 for station in accesible_list[i]}
+        cnt = cnt + len(accesible_list[i])
+        table.append(dic)
+
+    #2. 역들을 탐색한다
+    duplicate_list = []
+    for station in accesible_list[0]:
+        duplicated = True
+        for i in range(1, n):
+            cnt = cnt + 1
+            val = table[i].get(station)
+            if val == None:
+                duplicated = False
+                break
+        if duplicated:
+            duplicate_list.append(station)
+    return duplicate_list, cnt
+
+def getList(accessible_list, n, method): #갈수있는 역들 모음(2차원배열), 사람 수
+    duplicate_list, cnt = method(accessible_list, n, cnt=0)
+    return duplicate_list, cnt
 
 def main():
     station_list, n = getInput()
     #accessible_list = []
     
+    #accessible_list = []
+    time = 5
+    #dest_stations = []
+        
     while True:
-        accessible_list = []
-        time = int(input("input time: "))
-        if time == -1: break
-    
+        accessible_list = []    
+        
+        #백트래킹으로 일정 시간 안에 갈 수 있는 역들을 찾는 부분
         for i in range(n):
-            possible_station = backtracking(station_list[i], time, 0.0, {})
-            #print("=================================")
-            possible_station = sorted(possible_station)
+            possible_station = backtracking("", station_list[i], time, 0.0, {})
+            #possible_station = sorted(possible_station) #ㄱ, ㄴ, ㄷ 순으로 정렬
             accessible_list.append(possible_station)
-    
-        #print(accessible_list)
+            
         dest_stations = []
-        dest_stations = getList(accessible_list, n)
+        dest_stations, cnt = getList(accessible_list, n, method=hashing)
+        if dest_stations: break
+        else: time = time + 5
 
-        print(dest_stations)
+    print(dest_stations)
+    print("예상 시간: ", time)
+    print("연산횟수: ", cnt)
         #print(accessible_list)
         #for i in range(len(accessible_list[0]) - 1):
         #    print(accessible_list[0][i] < accessible_list[0][i+1])
 
 if __name__ == '__main__':
     main()
-
-
 
