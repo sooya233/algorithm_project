@@ -7,8 +7,6 @@ with open('stations_info.json', encoding='utf-8-sig')as json_file:  #Open Saved 
 with open('transfer_data.json', encoding='utf-8-sig')as json_file:  #Open Saved Json file to Dictionary
     transfer_data = json.load(json_file)
 
-from collections import deque
-
 def getLine(st1, st2):
     line1 = stations_info[st1]
     line2 = stations_info[st2]
@@ -50,34 +48,12 @@ def backtracking(line, station, n, time, visited = {}): #start station은 line i
     st_list = list(visited.keys())
     return st_list
 
-def bfs(station, n, time, visited = []):
-    queue = deque([(station, time)])
-    while queue:
-        st_info = queue.popleft()
-        st_name = st_info[0]
-        elapsed_time = st_info[1]
-        
-        try:
-            around_stations = stations[st_name]
-        except KeyError:
-            continue
-        visited.append(st_name)
-        
-        for next_name, takes_time in around_stations.items():
-            if next_name in visited:
-                continue
-            next_time = elapsed_time + takes_time + 0.5 #0.5=정차시간
-            if next_time <= n:
-                queue.append((next_name, next_time))
-    visited = set(visited)
-    return visited
-
 def getInput():
-    n = int(input('사람이 몇 명입니까? '))
+    n = int(input('How many people? '))
     station_list = []
 
     for i in range(n):
-        temp = input('탑승 역을 입력하시오: ')
+        temp = input('Input departure station: ')
         station_list.append(temp)
         
     return station_list, n
@@ -167,35 +143,50 @@ def getList(accessible_list, n, method): #갈수있는 역들 모음(2차원배�
     duplicate_list, cnt = method(accessible_list, n, cnt=0)
     return duplicate_list, cnt
 
-def main():
-    station_list, n = getInput()
-    #accessible_list = []
-    
-    #accessible_list = []
+def solve(station_list, n, func):
     time = 5
-    #dest_stations = []
-        
     while True:
         accessible_list = []    
         
         #백트래킹으로 일정 시간 안에 갈 수 있는 역들을 찾는 부분
         for i in range(n):
             possible_station = backtracking("", station_list[i], time, 0.0, {})
-            #possible_station = sorted(possible_station) #ㄱ, ㄴ, ㄷ 순으로 정렬
             accessible_list.append(possible_station)
             
         dest_stations = []
-        dest_stations, cnt = getList(accessible_list, n, method=hashing)
+        dest_stations, cnt = getList(accessible_list, n, method=func)
         if dest_stations: break
         else: time = time + 5
+    
+    #더 짧은 시간 안에 갈 수 있는 역들 재탐색
+    for i in range(time - 1, time - 5, -1):
+        accessible_list = []
+        for j in range(n):
+            possible_station = backtracking("", station_list[j], i, 0.0, {})
+            accessible_list.append(possible_station)
+        r_dest_stations, r_cnt = getList(accessible_list, n, method=func)
+        if r_dest_stations:
+            dest_stations = r_dest_stations
+            cnt = r_cnt
+            time = i
+            continue
+        else: break
+    
+    print("Recommand Station: ", dest_stations)
+    print("Time Complexity: ", cnt)
 
-    print(dest_stations)
-    print("예상 시간: ", time)
-    print("연산횟수: ", cnt)
-        #print(accessible_list)
-        #for i in range(len(accessible_list[0]) - 1):
-        #    print(accessible_list[0][i] < accessible_list[0][i+1])
+def main():
+    func_list = [bruteforce, binary, hashing]
+    func_name = ['Brute-Force', 'Binary-Search', 'Hashing']
+    station_list, n = getInput()
+    print('==========================')
+    
+    for i in range(3):
+        print(func_name[i])
+        solve(station_list, n, func_list[i])
+        print('==========================')
 
 if __name__ == '__main__':
     main()
+
 
